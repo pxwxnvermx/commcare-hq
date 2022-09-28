@@ -25,8 +25,11 @@ from .utils import (
     test_adapter,
 )
 from ..client import (
-    BulkActionItem,
     BaseAdapter,
+    BulkActionItem,
+    ElasticDocumentAdapter,
+    ElasticMultiplexAdapter,
+    Tombstone,
     get_client,
     manager,
     _elastic_hosts,
@@ -1430,6 +1433,110 @@ class TestBulkActionItem(SimpleTestCase):
         self.assertNotEqual(
             BulkActionItem.delete(doc),
             BulkActionItem.delete_id(doc.id),
+        )
+
+
+class TestElasticMultiplexAdapter(SimpleTestCase):
+
+    ARG = object()
+    VALUE = object()
+
+    adapter = ElasticMultiplexAdapter(
+        TestDocumentAdapter("primary", "doc"),
+        TestDocumentAdapter("secondary", "doc"),
+    )
+
+    def test_settings(self):
+        self.skipTest("-")
+
+    def test_to_json(self):
+        self.skipTest("-")
+
+    def test_export_adapter(self):
+        self.skipTest("-")
+
+    def test_from_python(self):
+        self.skipTest("-")
+
+    # Elastic index read methods (pass-through on the primary adapter)
+    def test_count(self):
+        with patch_adapters_method(self.adapter, "count") as mocks:
+            self.adapter.count(self.ARG, keyword=self.VALUE)
+        self.assert_passthru_primary_only(*mocks, self.ARG, keyword=self.VALUE)
+
+    def test_exists(self):
+        with patch_adapters_method(self.adapter, "exists") as mocks:
+            self.adapter.exists(self.ARG, keyword=self.VALUE)
+        self.assert_passthru_primary_only(*mocks, self.ARG, keyword=self.VALUE)
+
+    def test_get(self):
+        with patch_adapters_method(self.adapter, "get") as mocks:
+            self.adapter.get(self.ARG, keyword=self.VALUE)
+        self.assert_passthru_primary_only(*mocks, self.ARG, keyword=self.VALUE)
+
+    def test_get_docs(self):
+        with patch_adapters_method(self.adapter, "get_docs") as mocks:
+            self.adapter.get_docs(self.ARG, keyword=self.VALUE)
+        self.assert_passthru_primary_only(*mocks, self.ARG, keyword=self.VALUE)
+
+    def test_iter_docs(self):
+        with patch_adapters_method(self.adapter, "iter_docs") as mocks:
+            self.adapter.iter_docs(self.ARG, keyword=self.VALUE)
+        self.assert_passthru_primary_only(*mocks, self.ARG, keyword=self.VALUE)
+
+    def test_scroll(self):
+        with patch_adapters_method(self.adapter, "scroll") as mocks:
+            self.adapter.scroll(self.ARG, keyword=self.VALUE)
+        self.assert_passthru_primary_only(*mocks, self.ARG, keyword=self.VALUE)
+
+    def test_search(self):
+        with patch_adapters_method(self.adapter, "search") as mocks:
+            self.adapter.search(self.ARG, keyword=self.VALUE)
+        self.assert_passthru_primary_only(*mocks, self.ARG, keyword=self.VALUE)
+
+    def assert_passthru_primary_only(self, p_mock, s_mock, *args, **kw):
+        p_mock.assert_called_once_with(*args, **kw)
+        s_mock.assert_not_called()
+
+    # Elastic index write methods (multiplexed between both adapters)
+    def test_bulk(self):
+        self.skipTest("-")
+
+    def test_delete(self):
+        self.skipTest("-")
+
+    def test_index(self):
+        self.skipTest("-")
+
+    def test_update(self):
+        self.skipTest("-")
+
+
+@contextmanager
+def patch_adapters_method(adapter, name, **kw):
+    with (
+        patch.object(adapter.primary, name, **kw) as p_mock,
+        patch.object(adapter.secondary, name, **kw) as s_mock,
+    ):
+        yield p_mock, s_mock
+
+
+class TestTombstone(SimpleTestCase):
+
+    def test_property_name_is_unchanged(self):
+        # It is only safe to change this when there are no multiplexed index
+        # configurations.
+        self.assertEqual("__is_tombstone__", Tombstone.PROPERTY_NAME)
+
+    def test_id(self):
+        doc_id = object()
+        tombstone = Tombstone(doc_id)
+        self.assertIs(doc_id, tombstone.id)
+
+    def test_create_document(self):
+        self.assertEqual(
+            {Tombstone.PROPERTY_NAME: True},
+            Tombstone.create_document(),
         )
 
 

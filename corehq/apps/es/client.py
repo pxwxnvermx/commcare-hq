@@ -393,13 +393,15 @@ class ElasticDocumentAdapter(BaseAdapter):
         """
         return self._es.exists(self.index_name, self.type, doc_id)
 
-    def get(self, doc_id, source_includes=[]):
+    def get(self, doc_id, source_includes=None):
         """Return the document for the provided ``doc_id``
 
         Equivalent to the legacy ``ElasticsearchInterface.get_doc(...)`` method.
 
         :param doc_id: ``str`` ID of the document to be fetched
-        :param source_includes: a list of fields to extract and return
+        :param source_includes: a list of fields to extract and return. If
+                                ``None`` (the default), the entire document is
+                                returned.
         :returns: ``dict``
         """
         kw = {"_source_include": source_includes} if source_includes else {}
@@ -596,6 +598,10 @@ class ElasticDocumentAdapter(BaseAdapter):
         doc_id, source = self.from_python(doc)
         self._verify_doc_id(doc_id)
         self._verify_doc_source(source)
+        self._index(doc_id, source, refresh, **kw)
+
+    def _index(self, doc_id, source, refresh, **kw):
+        """Perform the low-level (3rd party library) index operation."""
         self._es.index(self.index_name, self.type, source, doc_id,
                        refresh=self._refresh_value(refresh), **kw)
 
@@ -773,6 +779,8 @@ class ElasticDocumentAdapter(BaseAdapter):
         """
         if not isinstance(source, dict) or "_id" in source:
             raise ValueError(f"invalid Elastic _source value: {source}")
+        if Tombstone.PROPERTY_NAME in source:
+            raise ValueError(f"property {Tombstone.PROPERTY_NAME} is reserved")
 
     @staticmethod
     def _fix_hit(hit):
@@ -886,6 +894,124 @@ class BulkActionItem:
         return f"<{self.__class__.__name__} op_type={self.op_type.name}, {doc_info}>"
 
 
+class ElasticMultiplexAdapter(BaseAdapter):
+
+    def __init__(self, primary_adapter, secondary_adapter):
+        super().__init__()
+        self.index_name = primary_adapter.index_name
+        self.type = primary_adapter.type
+        self.mapping = primary_adapter.mapping
+
+        self.primary = primary_adapter
+        self.secondary = secondary_adapter
+        # TODO document this better
+        self.secondary.from_python = self.from_python
+
+    def export_adapter(self):
+        adapter = copy.copy(self)
+        adapter.primary = adapter.primary.export_adapter()
+        return adapter
+
+    def from_python(self, doc):
+        # TODO: this is a classmethod on the the document adapter, but should
+        # be converted to an instance method
+        if isinstance(doc, Tombstone):
+            return doc.id, Tombstone.create_document()
+        return self.primary.from_python(doc)
+
+    # meta methods and Elastic index read methods (pass-through on the primary
+    # adapter)
+    @property
+    def settings(self):
+        # TODO: this is a classproperty on the the document adapter, but should
+        # be converted to a property
+        return self.primary.settings
+
+    def to_json(self, doc):
+        # TODO: this is a classmethod on the the document adapter, but should
+        # be converted to an instance method
+        return self.primary.to_json(doc)
+
+    def count(self, *args, **kw):
+        return self.primary.count(*args, **kw)
+
+    def exists(self, *args, **kw):
+        return self.primary.exists(*args, **kw)
+
+    def get(self, *args, **kw):
+        return self.primary.get(*args, **kw)
+
+    def get_docs(self, *args, **kw):
+        return self.primary.get_docs(*args, **kw)
+
+    def iter_docs(self, *args, **kw):
+        return self.primary.iter_docs(*args, **kw)
+
+    def scroll(self, *args, **kw):
+        return self.primary.scroll(*args, **kw)
+
+    def search(self, *args, **kw):
+        return self.primary.search(*args, **kw)
+
+    # Elastic index write methods (multiplexed between both adapters)
+    def bulk(self, actions, refresh=False, **kw):
+        """Pass actions verbatim to primary. Convert delete actions to
+        'index tombstone' actions and send to secondary."""
+        primary_actions = []
+        secondary_actions = []
+        for action in actions:
+            primary_actions.append(action)
+            if action.is_delete:
+                # This logic belongs in the BulkActionItem class, but that class
+                # has no concept of 'to_python(doc)'
+                if action.doc_id is None:
+                    doc_id = self.from_python(action.doc)[0]
+                else:
+                    doc_id = action.doc_id
+                action = BulkActionItem.index(Tombstone(doc_id))
+            secondary_actions.append(action)
+        self.primary.bulk(primary_actions, refresh, **kw)
+        # don't refresh the secondary because we never read from it
+        self.secondary.bulk(secondary_actions, **kw)
+
+    def delete(self, doc_id, refresh=False):
+        """Delete on primary, index tombstone on secondary."""
+        self.primary.delete(doc_id, refresh)
+        # don't refresh the secondary because we never read from it
+        self.secondary._index(doc_id, Tombstone.create_document())
+
+    def index(self, doc, refresh=False, **kw):
+        """Index on both adapters"""
+        self.primary.index(doc, refresh, **kw)
+        # don't refresh the secondary because we never read from it
+        self.secondary.index(doc, **kw)
+
+    def update(self, doc_id, fields, return_doc=False, refresh=False,
+               _upsert=False, **kw):
+        """Update on the primary adapter, fetching the full doc; then upsert the
+        secondary adapter.
+        """
+        full_doc = self.primary.update(doc_id, fields, return_doc=True,
+                                       refresh=refresh, _upsert=_upsert, **kw)
+        # don't refresh the secondary because we never read from it
+        self.secondary.update(doc_id, full_doc, _upsert=True, **kw)
+        if return_doc:
+            return full_doc
+        return None
+
+
+class Tombstone:
+
+    PROPERTY_NAME = "__is_tombstone__"
+
+    def __init__(self, doc_id):
+        self.id = doc_id
+
+    @classmethod
+    def create_document(cls):
+        return {cls.PROPERTY_NAME: True}
+
+
 def get_client(for_export=False):
     """Get an elasticsearch client instance.
 
@@ -943,19 +1069,27 @@ def _elastic_hosts():
     return hosts
 
 
-def create_document_adapter(cls, index_name, type_):
-    """Returns a document adapter instance for the parameters provided.
+def create_document_adapter(cls, index_name, type_, *, secondary=None):
+    """Creates, registers and returns a document adapter instance for the
+    parameters provided.
 
     :param cls: an ``ElasticDocumentAdapter`` subclass
     :param index_name: the name of the index that the adapter interacts with
     :param type_: the index ``_type`` for the adapter's mapping.
+    :param secondary: the name of the secondary index in a multiplexing
+        configuration. If an index name is provided, the returned adapter will
+        be an instance of ``ElasticMultiplexAdapter``.  If ``None`` (the
+        default), the returned adapter will be an instance of ``cls``.
+    :returns: a document adapter instance.
     """
-    # transform the name if testing
-    prefix = TEST_DATABASE_PREFIX if settings.UNIT_TESTING else ""
-    index_name = f"{prefix}{index_name}"
+    def runtime_name(name):
+        # transform the name if testing
+        return f"{TEST_DATABASE_PREFIX}{name}" if settings.UNIT_TESTING else name
 
-    # create the adapter instance and register it
-    doc_adapter = cls(index_name, type_)
+    doc_adapter = cls(runtime_name(index_name), type_)
+    if secondary is not None:
+        secondary_adapter = cls(runtime_name(secondary), type_)
+        doc_adapter = ElasticMultiplexAdapter(doc_adapter, secondary_adapter)
 
     register_document_adapter(doc_adapter)
     return doc_adapter
