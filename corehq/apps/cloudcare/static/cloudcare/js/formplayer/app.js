@@ -3,20 +3,45 @@
 /**
  * The primary Marionette application managing menu navigation and launching form entry
  */
-
-hqDefine("cloudcare/js/formplayer/app", function () {
-    var appcues = hqImport('analytix/js/appcues'),
-        initialPageData = hqImport("hqwebapp/js/initial_page_data"),
-        CloudcareUtils = hqImport("cloudcare/js/utils"),
-        Const = hqImport("cloudcare/js/formplayer/constants"),
-        FormplayerUtils = hqImport("cloudcare/js/formplayer/utils/utils"),
-        GGAnalytics = hqImport("analytix/js/google"),
-        Kissmetrics = hqImport("analytix/js/kissmetrix"),
-        ProgressBar = hqImport("cloudcare/js/formplayer/layout/views/progress_bar"),
-        Toggles = hqImport("hqwebapp/js/toggles"),
-        UsersModels = hqImport("cloudcare/js/formplayer/users/models"),
-        WebFormSession = hqImport('cloudcare/js/form_entry/web_form_session');
-
+hqDefine("cloudcare/js/formplayer/app", [
+    'jquery',
+    'knockout',
+    'underscore',
+    'backbone/backbone',
+    'backbone.marionette/lib/backbone.marionette',
+    'markdown-it/dist/markdown-it',
+    'hqwebapp/js/initial_page_data',
+    'hqwebapp/js/toggles'
+    'analytix/js/appcues',
+    'analytix/js/google',
+    'analytix/js/kissmetrix',
+    'cloudcare/js/utils',
+    'cloudcare/js/formplayer/constants',
+    'cloudcare/js/formplayer/utils/utils',
+    'cloudcare/js/formplayer/layout/views/progress_bar',
+    'cloudcare/js/formplayer/users/models',
+    'cloudcare/js/form_entry/web_form_session',
+    'backbone.radio/build/backbone.radio.min',  // needed for Backbone.Radio
+    'marionette.templatecache/lib/marionette.templatecache.min',    // needed for Marionette.TemplateCache
+], function (
+    $,
+    ko,
+    _,
+    Backbone,
+    Marionette,
+    markdowner,
+    initialPageData,
+    Toggles,
+    appcues,
+    GGAnalytics,
+    Kissmetrics,
+    CloudcareUtils,
+    Const,
+    FormplayerUtils,
+    ProgressBar,
+    UsersModels,
+    WebFormSession
+) {
     Marionette.setRenderer(Marionette.TemplateCache.render);
     var FormplayerFrontend = new Marionette.Application();
 
@@ -202,8 +227,7 @@ hqDefine("cloudcare/js/formplayer/app", function () {
             if (resp.status === "success") {
                 var $alert;
                 if (resp.submitResponseMessage) {
-                    var markdowner = window.markdownit(),
-                        analyticsLinks = [
+                    var analyticsLinks = [
                             { url: initialPageData.reverse('list_case_exports'), text: '[Data Feedback Loop Test] Clicked on Export Cases Link' },
                             { url: initialPageData.reverse('list_form_exports'), text: '[Data Feedback Loop Test] Clicked on Export Forms Link' },
                             { url: initialPageData.reverse('case_data', '.*'), text: '[Data Feedback Loop Test] Clicked on Case Data Link' },
