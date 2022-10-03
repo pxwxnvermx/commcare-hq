@@ -1,11 +1,14 @@
 /* global moment, NProgress */
 hqDefine('cloudcare/js/utils', [
     'jquery',
+    'underscore',
     'hqwebapp/js/initial_page_data',
     'integration/js/hmac_callout',
     "cloudcare/js/formplayer/constants",
+    'eonasdan-bootstrap-datetimepicker/build/js/bootstrap-datetimepicker.min',  // for $.datetimepicker
 ], function (
     $,
+    _,
     initialPageData,
     HMACCallout,
     constants
