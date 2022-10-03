@@ -1,4 +1,8 @@
-hqDefine('cloudcare/js/preview_app/preview_app', function () {
+hqDefine('cloudcare/js/preview_app/preview_app', [
+    'jquery',
+], function (
+    $
+) {
     var FormplayerFrontend = hqImport("cloudcare/js/formplayer/app");
 
     var start = function (options) {
