@@ -1,6 +1,8 @@
-/*global Backbone */
-
-hqDefine("cloudcare/js/formplayer/users/models", function () {
+hqDefine("cloudcare/js/formplayer/users/models", [
+    "backbone/backbone",
+], function (
+    Backbone
+) {
     var kissmetrics = hqImport("analytix/js/kissmetrix");
 
     var User = Backbone.Model.extend();
