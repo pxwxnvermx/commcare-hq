@@ -1,8 +1,21 @@
-/* globals ace, Clipboard */
-hqDefine('cloudcare/js/debugger/debugger', function () {
-    var kissmetrics = hqImport("analytix/js/kissmetrix"),
-        readableForm = hqImport("reports/js/readable_form");
-
+hqDefine('cloudcare/js/debugger/debugger', [
+    'jquery',
+    'knockout',
+    'underscore',
+    'clipboard/dist/clipboard',
+    'hqwebapp/js/base_ace',
+    'analytix/js/kissmetrix',
+    'reports/js/readable_form',
+    'hqwebapp/js/atwho',    // $.atwho
+], function (
+    $,
+    ko,
+    _,
+    Clipboard,
+    baseAce,        // TODO
+    kissmetrics,
+    readableForm
+) {
     /**
      * These define tabs that are availabe in the debugger.
      * {
