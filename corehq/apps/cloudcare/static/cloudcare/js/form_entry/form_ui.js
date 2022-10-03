@@ -1,9 +1,25 @@
-/* global DOMPurify, mdAnchorRender */
-hqDefine("cloudcare/js/form_entry/form_ui", function () {
-    var constants = hqImport("cloudcare/js/form_entry/const"),
-        entries = hqImport("cloudcare/js/form_entry/entries"),
-        utils = hqImport("cloudcare/js/form_entry/utils");
-    var md = window.markdownit();
+hqDefine("cloudcare/js/form_entry/form_ui", [
+    'jquery',
+    'knockout',
+    'underscore',
+    'DOMPurify/dist/purify.min',
+    'markdown-it/dist/markdown-it',
+    'TODO: mdAnchorRender',
+    'cloudcare/js/form_entry/const',
+    'cloudcare/js/form_entry/entries',
+    'cloudcare/js/form_entry/utils',
+    'jquery-tiny-pubsub/dist/ba-tiny-pubsub',       // $.pubsub
+], function (
+    $,
+    ko,
+    _,
+    DOMPurify,
+    md,
+    mdAnchorRender,
+    constants,
+    entries,
+    utils
+) {
     var groupNum = 0;
 
     //Overriden by downstream contexts, check before changing
