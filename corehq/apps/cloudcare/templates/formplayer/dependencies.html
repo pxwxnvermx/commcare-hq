@@ -4,12 +4,12 @@
   <link href='https://api.mapbox.com/mapbox.js/v3.3.1/mapbox.css' rel='stylesheet' />
 {# TODO: remove all script tags #}
 {% compress js %}
-  <script src="{% static 'nprogress/nprogress.js' %}"></script>
+  <script src="{% static 'nprogress/nprogress.js' %}"></script><!-- unused? see when it was added -->
   <script src="{% static 'ace-builds/src-min-noconflict/ace.js' %}"></script>
   <script src="{% static 'ace-builds/src-min-noconflict/mode-json.js' %}"></script>
   <script src="{% static 'ace-builds/src-min-noconflict/mode-xml.js' %}"></script>
   <script src="{% static 'ace-builds/src-min-noconflict/ext-searchbox.js' %}"></script>
-  <script src="{% static 'url-polyfill/url-polyfill.js' %}"></script>
+  <script src="{% static 'url-polyfill/url-polyfill.js' %}"></script><!-- has browser support for this improved?  -->
 {% endcompress %}
 
 {% compress css %}
