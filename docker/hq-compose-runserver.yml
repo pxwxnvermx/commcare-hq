@@ -2,9 +2,10 @@ version: '2.3'
 
 # x-anchors are ignored by Docker, are used for DRYness here
 x-commcarehq_base: &commcarehq_base
-  build:
-    context: .
-    dockerfile: "${DOCKERFILE}"
+  image: kaapstorm/commcarehq_base:latest
+#  build:
+#    context: .
+#    dockerfile: "${DOCKERFILE}"
   environment: &environment_base
     COMMCAREHQ_BOOTSTRAP: "yes"
     DEPENDENT_SERVICES: "couch:5984 postgres:5432 redis:6379 elasticsearch2:9200 minio:9980 kafka:9092"
@@ -28,7 +29,16 @@ x-commcarehq_base: &commcarehq_base
 services:
   web:
     <<: *commcarehq_base
-    command: [runserver]
+    # TODO:
+    #   2. Check whether a superuser exists. If not::
+    #          su cchq -c "export CCHQ_IS_FRESH_INSTALL=1 &&
+    #                ./manage.py sync_couch_views &&
+    #                ./manage.py migrate --noinput &&
+    #                ./manage.py compilejsi18n &&
+    #                ./manage.py create_kafka_topics &&
+    #                ./manage.py make_superuser admin@example.com"
+    #   4. Run server: su cchq -c "./manage.py runserver 0.0.0.0:8000"
+    command: 'su cchq -c "./manage.py runserver 0.0.0.0:8000"'
     expose:
       - 8000
     ports:
@@ -36,14 +46,16 @@ services:
 
   celery:
     <<: *commcarehq_base
-    command: [runcelery]
+    # TODO: Depend on web
+    command: 'su cchq -c "celery -A corehq worker -l info"'
 
   pillowtop:
     <<: *commcarehq_base
     environment:
       <<: *environment_base
       KAFKA_ADVERTISED_HOST_NAME: kafka
-    command: [runpillowtop]
+    # TODO: Depend on web
+    command: 'su cchq -c "./manage.py run_ptop --all --processor-chunk-size=1"'
 
   formplayer:
     extends:

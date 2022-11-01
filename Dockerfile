@@ -33,17 +33,19 @@ RUN npm -g install \
     grunt-cli \
     uglify-js
 
+RUN rm -rf /vendor
+COPY . /vendor/
 WORKDIR /vendor
-COPY requirements/prod-requirements.txt /vendor/requirements.txt
+#COPY requirements/prod-requirements.txt /vendor/requirements.txt
 # prefer https for git checkouts made by pip
 RUN git config --global url."https://".insteadOf git:// && \
     pip install --upgrade pip && \
-    pip install -r requirements.txt --user --upgrade && \
+    pip install -r requirements/prod-requirements.txt --user --upgrade && \
     rm -rf /root/.cache/pip
 
-COPY package.json /vendor/
+#COPY package.json /vendor/
 RUN npm shrinkwrap && \
     yarn global add phantomjs-prebuilt
 
-COPY . /vendor/
-RUN python /vendor/manage.py collectstatic --noinput
+#COPY . /vendor/
+RUN python manage.py collectstatic --noinput
