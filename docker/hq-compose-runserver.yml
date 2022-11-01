@@ -1,8 +1,11 @@
 version: '2.3'
 
+volumes:
+  shared_files: {}
+
 # x-anchors are ignored by Docker, are used for DRYness here
 x-commcarehq_base: &commcarehq_base
-  image: kaapstorm/commcarehq_base:latest
+  image: commcarehq_incl:latest
 #  build:
 #    context: .
 #    dockerfile: "${DOCKERFILE}"
@@ -23,8 +26,7 @@ x-commcarehq_base: &commcarehq_base
     - zookeeper
     - minio
   volumes:
-    - ..:/mnt/commcare-hq-ro:ro
-    - ${VOLUME_PREFIX}lib:/mnt/lib
+    - shared_files:/mnt/lib  # /opt/data?
 
 services:
   web:

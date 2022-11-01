@@ -33,9 +33,9 @@ RUN npm -g install \
     grunt-cli \
     uglify-js
 
-RUN rm -rf /vendor
-COPY . /vendor/
 WORKDIR /vendor
+COPY . /vendor/
+
 #COPY requirements/prod-requirements.txt /vendor/requirements.txt
 # prefer https for git checkouts made by pip
 RUN git config --global url."https://".insteadOf git:// && \
